@@ -4,13 +4,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Threading;
-using System.Windows.Controls;
-using System.Windows.Threading;
 using AutoMerge.Events;
 using AutoMerge.Prism.Command;
 using AutoMerge.Prism.Events;
@@ -22,7 +16,6 @@ using Microsoft.TeamFoundation.Controls.WPF.TeamExplorer;
 using Microsoft.TeamFoundation.VersionControl.Client;
 using Microsoft.TeamFoundation.VersionControl.Common;
 using Microsoft.TeamFoundation.WorkItemTracking.Client;
-using Microsoft.VisualStudio.Services.Common;
 using Microsoft.VisualStudio.Shell.Interop;
 using TeamExplorerSectionViewModelBase = AutoMerge.Base.TeamExplorerSectionViewModelBase;
 
@@ -304,7 +297,7 @@ namespace AutoMerge
             Refresh();
         }
 
-        private ObservableCollection<MergeInfoViewModel> GetBranches(ITeamFoundationContext context, ChangesetViewModel changesetViewModel) // (4)
+        private ObservableCollection<MergeInfoViewModel> GetBranches(ITeamFoundationContext context, ChangesetViewModel changesetViewModel)
         {
             if (context == null)
                 return new ObservableCollection<MergeInfoViewModel>();
@@ -321,7 +314,6 @@ namespace AutoMerge
 
             var sourceTopFolder = CalculateTopFolder(changes);
             var mergesRelationships = GetMergesRelationships(sourceTopFolder, versionControl);
-            int mergesRelationshipsTestCount = mergesRelationships.Count;
 
             if (mergesRelationships.Count > 0)
             {
@@ -401,11 +393,10 @@ namespace AutoMerge
 
         private static List<ItemIdentifier> GetMergesRelationships(string sourceTopFolder, VersionControlServer versionControl)
         {
-            return versionControl.QueryMergeRelationships(sourceTopFolder) 
+            return versionControl.QueryMergeRelationships(sourceTopFolder)
                 .Where(r => !r.IsDeleted)
                 .ToList();
         }
-        
 
         private TrackMergeInfo GetTrackMergeInfo(VersionControlServer versionControl,
             IEnumerable<ExtendedMerge> allTrackMerges,
