@@ -4,7 +4,13 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Threading;
+using System.Windows.Controls;
+using System.Windows.Threading;
 using AutoMerge.Events;
 using AutoMerge.Prism.Command;
 using AutoMerge.Prism.Events;
@@ -16,6 +22,7 @@ using Microsoft.TeamFoundation.Controls.WPF.TeamExplorer;
 using Microsoft.TeamFoundation.VersionControl.Client;
 using Microsoft.TeamFoundation.VersionControl.Common;
 using Microsoft.TeamFoundation.WorkItemTracking.Client;
+using Microsoft.VisualStudio.Services.Common;
 using Microsoft.VisualStudio.Shell.Interop;
 using TeamExplorerSectionViewModelBase = AutoMerge.Base.TeamExplorerSectionViewModelBase;
 
@@ -285,8 +292,8 @@ namespace AutoMerge
             if (changeset.Branches.IsNullOrEmpty())
                 return "Changeset has not branch";
 
-            if (changeset.Branches.Count > 1)
-                return string.Format("Changeset has {0} branches. Merge not possible.", changeset.Branches.Count);
+//            if (changeset.Branches.Count > 1)
+//                return string.Format("Changeset has {0} branches. Merge not possible.", changeset.Branches.Count); 
 
             return null;
         }
@@ -297,7 +304,7 @@ namespace AutoMerge
             Refresh();
         }
 
-        private ObservableCollection<MergeInfoViewModel> GetBranches(ITeamFoundationContext context, ChangesetViewModel changesetViewModel)
+        private ObservableCollection<MergeInfoViewModel> GetBranches(ITeamFoundationContext context, ChangesetViewModel changesetViewModel) // (4)
         {
             if (context == null)
                 return new ObservableCollection<MergeInfoViewModel>();
@@ -314,6 +321,7 @@ namespace AutoMerge
 
             var sourceTopFolder = CalculateTopFolder(changes);
             var mergesRelationships = GetMergesRelationships(sourceTopFolder, versionControl);
+            int mergesRelationshipsTestCount = mergesRelationships.Count;
 
             if (mergesRelationships.Count > 0)
             {
@@ -393,10 +401,11 @@ namespace AutoMerge
 
         private static List<ItemIdentifier> GetMergesRelationships(string sourceTopFolder, VersionControlServer versionControl)
         {
-            return versionControl.QueryMergeRelationships(sourceTopFolder)
+            return versionControl.QueryMergeRelationships(sourceTopFolder) 
                 .Where(r => !r.IsDeleted)
                 .ToList();
         }
+        
 
         private TrackMergeInfo GetTrackMergeInfo(VersionControlServer versionControl,
             IEnumerable<ExtendedMerge> allTrackMerges,
@@ -509,7 +518,10 @@ namespace AutoMerge
 
                     var changeFolder = ExtractFolder(change.ChangeType, change.Item);
                     if (changeFolder != topFolder)
-                        topFolder = FindShareFolder(topFolder, changeFolder);
+                    {
+//                      topFolder = FindShareFolder(topFolder, changeFolder);
+                        topFolder = changeFolder;
+                    }
                 }
             }
 
@@ -527,16 +539,19 @@ namespace AutoMerge
             {
                 return changeFolder;
             }
-            const string rootFolder = "$/";
-            var folder = topFolder;
-            while (folder != rootFolder && !changeFolder.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
+            
             {
-                folder = ExtractParentFolder(folder);
-                if (folder != null && changeFolder.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
-                    break;
-            }
+                const string rootFolder = "$/";
+                var folder = topFolder;
+                while (folder != rootFolder && !changeFolder.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
+                {
+                    folder = ExtractParentFolder(folder);
+                    if (folder != null && changeFolder.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
+                        break;
+                }
 
-            return folder == rootFolder ? folder + "/" : folder;
+                return folder == rootFolder ? folder + "/" : folder;
+            }
         }
 
 //        private static bool SkipChange(ChangeType changeType, Item item)
@@ -702,7 +717,8 @@ namespace AutoMerge
 
         private string ConsolidateDuplicateComments(IEnumerable<MergeResultModel> resultModels)
         {
-            return String.Join(";", resultModels.Select(rm => rm.Comment).Distinct());
+            var comment = String.Join(";" + Environment.NewLine, resultModels.Select(rm => rm.Comment).Distinct());
+            return comment + ";";
         }
         
         private void OpenPendingChanges(ICollection<MergeResultModel> resultModels)
@@ -752,7 +768,8 @@ namespace AutoMerge
             }
         }
 
-        private List<MergeResultModel> MergeExecuteInternal(bool checkInIfSuccess)
+        
+        private async Task<List<MergeResultModel>> MergeExecuteInternal(bool checkInIfSuccess)
         {
             var result = new List<MergeResultModel>();
             var context = Context;
@@ -775,46 +792,52 @@ namespace AutoMerge
             var targetBranches = mergeInfos.Select(m => m.TargetBranch).ToArray();
             var pendingChanges = GetChangesetPendingChanges(changeset.Changes);
             var mergeRelationships = GetMergeRelationships(pendingChanges, targetBranches, versionControl);
-
+            
             var commentFormater = new CommentFormater(Settings.Instance.CommentFormat);
             foreach (var mergeInfo in mergeInfos.Where(b => b.Checked))
             {
-                var mergeResultModel = new MergeResultModel
-                {
-                    SourceChangesetId = changesetId,
-                    BranchInfo = mergeInfo,
-                };
 
-                var mergeResult = MergeToBranch(mergeInfo, mergeOption, mergeRelationships, workspace);
-                var targetPendingChanges = GetPendingChanges(mergeInfo.TargetPath, workspace);
-                if (mergeResult == MergeResult.UnexpectedFileRestored)
-                {
-                    workspace.Undo(targetPendingChanges.Select(pendingChange => new ItemSpec(pendingChange)).ToArray(),
-                        true);
-                    mergeResult = MergeByFile(changeset.Changes, mergeInfo.TargetBranch, mergeRelationships,
-                        mergeInfo.ChangesetVersionSpec, mergeOption, workspace);
-                    targetPendingChanges = GetPendingChangesByFile(mergeRelationships, mergeInfo.TargetBranch, workspace);
-                }
+                result = MergeExecution(mergeInfo, changesetId, changeset, mergeRelationships, mergeOption,
+                        workspace, workItemIds, versionControl, commentFormater, result, checkInIfSuccess,
+                        workItemStore);
+                
+            }
 
-                if (targetPendingChanges.Count == 0)
-                {
-                    mergeResult = MergeResult.NothingMerge;
-                }
-                mergeResultModel.MergeResult = mergeResult;
-                mergeResultModel.PendingChanges = targetPendingChanges;
-                mergeResultModel.WorkItemIds = workItemIds;
+            return result;
+        }
+        
 
-                var trackMergeInfo = GetTrackMergeInfo(mergeInfo, changeset, versionControl);
-                var comment = commentFormater.Format(trackMergeInfo, mergeInfo.TargetBranch, mergeOption);
-                mergeResultModel.Comment = comment;
+        private List<MergeResultModel> MergeExecution(MergeInfoViewModel mergeInfo, int changesetId, Changeset changeset, List<MergeRelation> mergeRelationships, MergeOption mergeOption, Workspace workspace,
+            List<int> workItemIds, VersionControlServer versionControl, CommentFormater commentFormater, List<MergeResultModel> result, bool checkInIfSuccess, WorkItemStore workItemStore)
+        {
+            var mergeResultModel = new MergeResultModel
+            {
+                SourceChangesetId = changesetId,
+                BranchInfo = mergeInfo,
+            };
 
-                result.Add(mergeResultModel);
-                if (checkInIfSuccess && mergeResultModel.MergeResult == MergeResult.Merged)
-                {
-                    var checkInResult = CheckIn(mergeResultModel.PendingChanges, comment, workspace, workItemIds, changeset.PolicyOverride, workItemStore);
-                    mergeResultModel.TagetChangesetId = checkInResult.ChangesetId;
-                    mergeResultModel.MergeResult = checkInResult.CheckinResult;
-                }
+            var mergeResult = MergeByFile(changeset.Changes, mergeInfo.TargetBranch, mergeRelationships, mergeInfo.ChangesetVersionSpec, mergeOption, workspace);
+            var targetPendingChanges = GetPendingChangesByFile(mergeRelationships, mergeInfo.TargetBranch, workspace);
+
+
+            if (targetPendingChanges.Count == 0)
+            {
+                mergeResult = MergeResult.NothingMerge;
+            }
+            mergeResultModel.MergeResult = mergeResult;
+            mergeResultModel.PendingChanges = targetPendingChanges;
+            mergeResultModel.WorkItemIds = workItemIds;
+
+            var trackMergeInfo = GetTrackMergeInfo(mergeInfo, changeset, versionControl);
+            var comment = commentFormater.Format(trackMergeInfo, mergeInfo.TargetBranch, mergeOption);
+            mergeResultModel.Comment = comment;
+
+            result.Add(mergeResultModel);
+            if (checkInIfSuccess && mergeResultModel.MergeResult == MergeResult.Merged)
+            {
+                var checkInResult = CheckIn(mergeResultModel.PendingChanges, comment, workspace, workItemIds, changeset.PolicyOverride, workItemStore);
+                mergeResultModel.TagetChangesetId = checkInResult.ChangesetId;
+                mergeResultModel.MergeResult = checkInResult.CheckinResult;
             }
 
             return result;
