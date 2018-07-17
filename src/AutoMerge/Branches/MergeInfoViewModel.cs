@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using AutoMerge.Events;
 using AutoMerge.Prism.Events;
 using Microsoft.TeamFoundation.VersionControl.Client;
