@@ -1,5 +1,5 @@
 #### 0.2.6.11 (2018-07-17)
-* (fix) AutoMerge can know merge even if multi braches were in the previous change
+* (fix) AutoMerge has now the ability to merge even if several branches were in the previous change
 
 #### 0.2.6.10 (2018-07-16)
 * (fix) Only a Test
