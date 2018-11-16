@@ -1096,7 +1096,7 @@ namespace AutoMerge
         {
             var allPendingChanges = workspace.GetPendingChangesEnumerable(target, RecursionType.Full);
             var targetPendingChanges = allPendingChanges
-                .Where(p => p.IsMerge && p.ServerItem.Contains(target))
+                .Where(p => p.IsMerge && p.ServerItem.IndexOf(target, StringComparison.OrdinalIgnoreCase) >= 0)
                 .ToList();
             return targetPendingChanges;
         }
