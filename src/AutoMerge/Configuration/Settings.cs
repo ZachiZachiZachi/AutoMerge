@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 
 namespace AutoMerge
@@ -21,7 +21,7 @@ namespace AutoMerge
         private readonly string[] _mergeOperationDefaultValues;
 
         private const string commentFormatKey = "comment_format";
-        private const string commentFormatDefault = "MERGE {FromOriginalToTarget} ({OriginalComment})";
+        private const string commentFormatDefault = "MERGE {SourceChangesetId} {FromOriginalToTarget} ({OriginalComment})";
         private const string commentFormatDiscardKey = "comment_format_discard";
         private const string commentFormatDiscardDefault = "DISCARD {" + commentFormatKey + "}";
         private const string branchDelimiterKey = "branch_delimiter";
