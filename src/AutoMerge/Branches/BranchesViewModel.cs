@@ -317,6 +317,7 @@ namespace AutoMerge
 
             if (mergesRelationships.Count > 0)
             {
+
                 var sourceBranchIdentifier = changesetViewModel.Branches.Select(b => new ItemIdentifier(b)).Last();
 
                 var sourceBranch = sourceBranchIdentifier.Item;
