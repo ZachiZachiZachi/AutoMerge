@@ -16,12 +16,13 @@ using Microsoft.TeamFoundation.Controls.WPF.TeamExplorer;
 using Microsoft.TeamFoundation.VersionControl.Client;
 using Microsoft.TeamFoundation.VersionControl.Common;
 using Microsoft.TeamFoundation.WorkItemTracking.Client;
+using Microsoft.VisualStudio.Shell.FindAllReferences;
 using Microsoft.VisualStudio.Shell.Interop;
 using TeamExplorerSectionViewModelBase = AutoMerge.Base.TeamExplorerSectionViewModelBase;
 
 namespace AutoMerge
 {
-    public sealed class BranchesViewModel : TeamExplorerSectionViewModelBase
+   public sealed class BranchesViewModel : TeamExplorerSectionViewModelBase
     {
         private readonly IEventAggregator _eventAggregator;
         private static ChangesetService _changesetService;
@@ -299,6 +300,7 @@ namespace AutoMerge
 
         private ObservableCollection<MergeInfoViewModel> GetBranches(ITeamFoundationContext context, ChangesetViewModel changesetViewModel)
         {
+            bool isExisting = false;
             if (context == null)
                 return new ObservableCollection<MergeInfoViewModel>();
             var tfs = context.TeamProjectCollection;
@@ -315,90 +317,211 @@ namespace AutoMerge
             var sourceTopFolder = CalculateTopFolder(changes);
             var mergesRelationships = GetMergesRelationships(sourceTopFolder, versionControl);
 
-            if (mergesRelationships.Count > 0)
-            {
-
-                var sourceBranchIdentifier = changesetViewModel.Branches.Select(b => new ItemIdentifier(b)).Last();
-
-                var sourceBranch = sourceBranchIdentifier.Item;
-
-                var trackMerges = versionControl.TrackMerges(new[] { changesetViewModel.ChangesetId },
-                    new ItemIdentifier(sourceTopFolder),
-                    mergesRelationships.ToArray(),
-                    null);
-
-                var changesetVersionSpec = new ChangesetVersionSpec(changesetViewModel.ChangesetId);
-
-                var branchValidator = new BranchValidator(workspace, trackMerges);
-                var branchFactory = new BranchFactory(sourceBranch, sourceTopFolder,
-                    changesetVersionSpec, branchValidator,
-                    _eventAggregator);
-
-                var sourceBranchInfo = versionControl.QueryBranchObjects(sourceBranchIdentifier, RecursionType.None)[0];
-                if (sourceBranchInfo.Properties != null && sourceBranchInfo.Properties.ParentBranch != null
-                    && !sourceBranchInfo.Properties.ParentBranch.IsDeleted)
-                {
-                    var targetBranch = sourceBranchInfo.Properties.ParentBranch;
-                    var targetPath = GetTargetPath(mergesRelationships, targetBranch);
-                    if (targetPath != null)
-                    {
-                        var mergeInfo = branchFactory.CreateTargetBranchInfo(targetBranch, targetPath);
-                        mergeInfo._checked = mergeInfo.ValidationResult == BranchValidationResult.Success;
-
-                        result.Add(mergeInfo);
-                    }
-                }
-
-                var currentBranchInfo = branchFactory.CreateSourceBranch();
-                result.Add(currentBranchInfo);
-
-                if (sourceBranchInfo.ChildBranches != null)
-                {
-                    var childBranches = sourceBranchInfo.ChildBranches.Where(b => !b.IsDeleted)
-                        .Reverse();
-                    foreach (var childBranch in childBranches)
-                    {
-                        var targetBranch = childBranch;
-                        var targetPath = GetTargetPath(mergesRelationships, targetBranch);
-                        if (targetPath != null)
-                        {
-                            var mergeInfo = branchFactory.CreateTargetBranchInfo(targetBranch, targetPath);
-                            result.Add(mergeInfo);
-                        }
-                    }
-                }
-
-                // Feature branch
                 if (mergesRelationships.Count > 0)
                 {
-                    var changetIds =
-                        mergesRelationships.Select(r => r.Version).Cast<ChangesetVersionSpec>().Select(c => c.ChangesetId)
-                        .Distinct()
-                        .ToArray();
-                    var branches = _changesetService.GetAssociatedBranches(changetIds);
-
-                    foreach (var mergesRelationship in mergesRelationships)
+                    for (int k = 0; k < sourceTopFolder.Length; k++)
                     {
-                        var targetBranch = branches.FirstOrDefault(b => IsTargetPath(mergesRelationship, b));
-                        if (targetBranch != null)
+
+
+                        var sourceBranchIdentifier =
+                            changesetViewModel.Branches.Select(b => new ItemIdentifier(b)).ElementAt(k);
+
+                        var sourceBranch = sourceBranchIdentifier.Item;
+
+                        var trackMerges = versionControl.TrackMerges(new[] {changesetViewModel.ChangesetId},
+                            new ItemIdentifier(sourceTopFolder[k]),
+                            mergesRelationships.ToArray(),
+                            null);
+
+                        var changesetVersionSpec = new ChangesetVersionSpec(changesetViewModel.ChangesetId);
+
+                        var branchValidator = new BranchValidator(workspace, trackMerges);
+                        var branchFactory = new BranchFactory(sourceBranch, sourceTopFolder[k],
+                            changesetVersionSpec, branchValidator,
+                            _eventAggregator);
+
+                        var sourceBranchInfo =
+                            versionControl.QueryBranchObjects(sourceBranchIdentifier, RecursionType.None)[0];
+                        if (sourceBranchInfo.Properties != null && sourceBranchInfo.Properties.ParentBranch != null
+                                                                && !sourceBranchInfo.Properties.ParentBranch.IsDeleted)
                         {
-                            var mergeInfo = branchFactory.CreateTargetBranchInfo(targetBranch, mergesRelationship);
-                            result.Add(mergeInfo);
+                            var targetBranch = sourceBranchInfo.Properties.ParentBranch;
+                            var targetPath = GetTargetPath(mergesRelationships, targetBranch);
+                            if (targetPath != null)
+                            {
+                                var mergeInfo = branchFactory.CreateTargetBranchInfo(targetBranch, targetPath);
+                                mergeInfo._checked = mergeInfo.ValidationResult == BranchValidationResult.Success;
+
+                                for (int i = 0; i < result.Count; i++)
+                                {
+                                    if (result[i].DisplayBranchName == mergeInfo.DisplayBranchName)
+                                    {
+                                        if (result[i].ValidationResult == BranchValidationResult.Success)
+                                        {
+                                            isExisting = true;
+                                            break;
+                                        }
+                                        else
+                                        {
+
+                                            result.RemoveAt(i);
+                                            result.Insert(i, mergeInfo);
+                                            isExisting = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (isExisting == false)
+                                {
+                                    result.Add(mergeInfo);
+                                }
+
+                                isExisting = false;
+
+                            }
+                        }
+
+                        var currentBranchInfo = branchFactory.CreateSourceBranch();
+                        for (int i = 0; i < result.Count; i++)
+                        {
+                            if (result[i].DisplayBranchName == currentBranchInfo.DisplayBranchName)
+                            {
+                                result.RemoveAt(i);
+                                result.Insert(i, currentBranchInfo);
+                                isExisting = true;
+                                break;
+                            }
+                        }
+
+                        if (isExisting == false)
+                        {
+                            result.Add(currentBranchInfo);
+                        }
+
+                        isExisting = false;
+
+                        if (sourceBranchInfo.ChildBranches != null)
+                        {
+                            var childBranches = sourceBranchInfo.ChildBranches.Where(b => !b.IsDeleted)
+                                .Reverse();
+                            foreach (var childBranch in childBranches)
+                            {
+                                var targetBranch = childBranch;
+                                var targetPath = GetTargetPath(mergesRelationships, targetBranch);
+                                if (targetPath != null)
+                                {
+                                    var mergeInfo = branchFactory.CreateTargetBranchInfo(targetBranch, targetPath);
+                                for (int i = 0; i < result.Count; i++)
+                                    {
+                                        if (result[i].DisplayBranchName == mergeInfo.DisplayBranchName)
+                                        {
+                                            if (result[i].ValidationResult == BranchValidationResult.Success)
+                                            {
+                                                isExisting = true;
+                                                break;
+                                            }
+                                            else
+                                            {
+
+                                                result.RemoveAt(i);
+                                                result.Insert(i, mergeInfo);
+                                                isExisting = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    if (isExisting == false)
+                                    {
+                                        result.Add(mergeInfo);
+                                    }
+
+                                    isExisting = false;
+                            }
+                            }
+                        }
+
+
+                        // Feature branch
+                        if (mergesRelationships.Count > 0)
+                        {
+                            var changetIds =
+                                mergesRelationships.Select(r => r.Version).Cast<ChangesetVersionSpec>()
+                                    .Select(c => c.ChangesetId)
+                                    .Distinct()
+                                    .ToArray();
+                            var branches = _changesetService.GetAssociatedBranches(changetIds);
+
+                            foreach (var mergesRelationship in mergesRelationships)
+                            {
+                                var targetBranch = branches.FirstOrDefault(b => IsTargetPath(mergesRelationship, b));
+                                if (targetBranch != null)
+                                {
+                                    var mergeInfo =
+                                        branchFactory.CreateTargetBranchInfo(targetBranch, mergesRelationship);
+                                    for (int i = 0; i < result.Count; i++)
+                                    {
+                                        if (result[i].DisplayBranchName == mergeInfo.DisplayBranchName)
+                                        {
+                                            if (result[i].ValidationResult == BranchValidationResult.Success)
+                                            {
+                                                isExisting = true;
+                                                break;
+                                            }
+                                            else
+                                            {
+
+                                                result.RemoveAt(i);
+                                                result.Insert(i, mergeInfo);
+                                                isExisting = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    if (isExisting == false)
+                                    {
+                                        for (int i = 1; i < result.Count; i++)
+                                        {
+                                            if (result[i].DisplayBranchName.CompareTo(mergeInfo.DisplayBranchName) < 0)
+                                            {
+                                                result.Insert(i, mergeInfo);
+                                                isExisting = true;
+                                                break;
+                                            }
+                                                                                        
+                                        }
+
+                                        if (isExisting == false)
+                                        {
+                                            result.Add(mergeInfo);
+                                        }
+
+                                    }
+
+                                    isExisting = false;
+                            }
+                            }
                         }
                     }
                 }
-            }
 
             return result;
         }
 
-        private static List<ItemIdentifier> GetMergesRelationships(string sourceTopFolder, VersionControlServer versionControl)
-        {
-            List<ItemIdentifier> t = new List<ItemIdentifier>();
-            t = versionControl.QueryMergeRelationships(sourceTopFolder)
-                .Where(r => !r.IsDeleted)
-                .ToList();
-            return t;
+        private static List<ItemIdentifier> GetMergesRelationships(string[] sourceTopFolder, VersionControlServer versionControl)
+        {   
+            List<ItemIdentifier> itemIdentifiers = new List<ItemIdentifier>();
+            for (int i = 0; i < sourceTopFolder.Length; i++)
+            {
+                itemIdentifiers.AddRange(versionControl.QueryMergeRelationships(sourceTopFolder[i])
+                    .Where(r => !r.IsDeleted)
+                    .ToList());   
+            }
+
+            itemIdentifiers = itemIdentifiers.OrderBy(x => x.Item).GroupBy(x => x.Item).Select(x => x.First()).ToList();
+            return itemIdentifiers;
         }
 
         private TrackMergeInfo GetTrackMergeInfo(VersionControlServer versionControl,
@@ -484,18 +607,19 @@ namespace AutoMerge
             return mergeRelations.Item.Contains(branch.Item);
         }
 
-        private static string CalculateTopFolder(IList<Change> changes)
+        private static string[] CalculateTopFolder(IList<Change> changes)
         {
+
             if (changes == null || changes.Count == 0)
                 throw new ArgumentNullException("changes");
-
-            string topFolder = null;
+            var changeset = _changeset;
+            string[] topFolderArray = new string[changeset.Branches.Count];
             if (changes.Count == 1 &&
                 (changes[0].ChangeType.HasFlag(ChangeType.Edit)
                 && !changes[0].ChangeType.HasFlag(ChangeType.Add)
                 && !changes[0].ChangeType.HasFlag(ChangeType.Branch)))
             {
-                topFolder = changes[0].Item.ServerItem;
+                topFolderArray[0] = changes[0].Item.ServerItem;
             }
             else
             {
@@ -511,57 +635,92 @@ namespace AutoMerge
 //                    }
 
                     var changeFolder = ExtractFolder(change.ChangeType, change.Item);
-                    if (changeFolder != topFolder)
+                    if (changeset.Branches.Count == 1)
                     {
-                        topFolder = FindShareFolder(topFolder, changeFolder);
+                        if (changeFolder != topFolderArray[0])
+                        {
+                            topFolderArray[0] = FindShareFolder(topFolderArray[0], changeFolder);
+                        }
+
                     }
+                    else
+                    {
+                        for (int i = 0; i <= changeset.Branches.Count; i++)
+                        {
+                            if (i == changeset.Branches.Count)
+                            {
+                                topFolderArray[i] = FindShareFolder(topFolderArray[i], changeFolder);
+                                break;
+                            }
+
+                            if (changeFolder.StartsWith(changeset.Branches[i], StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (changeFolder != topFolderArray[i])
+                                {
+                                    topFolderArray[i] = FindShareFolder(topFolderArray[i], changeFolder);
+                                }
+
+                                break;
+
+                            }
+
+                        }
+                    }
+
                 }
 
 
             }
 
-            if (topFolder != null && topFolder.EndsWith("/"))
+            for (int i = 0; i < topFolderArray.Length; i++)
             {
-                topFolder = topFolder.Substring(0, topFolder.Length - 1);
+                if (topFolderArray[i] != null && topFolderArray[i].EndsWith("/"))
+                {
+                    topFolderArray[i] = topFolderArray[i].Substring(0, topFolderArray[i].Length - 1);
+                }
             }
+           
 
-            return topFolder;
+            return topFolderArray;
+
+
         }
 
         private static string FindShareFolder(string topFolder, string changeFolder)
         {
-            var changeset = _changeset;
-            string changeFolderOlder = "";
-            if ((topFolder == null) || topFolder.Contains(changeFolder))
-            {
-                return changeFolder;
-            }
-            
-            {
-                const string rootFolder = "$/";
-                var folder = topFolder;
-                while (folder != rootFolder && !changeFolder.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
-                {
+                       var changeset = _changeset;
+                       string changeFolderOlder = "";
+                       if ((topFolder == null) || topFolder.Contains(changeFolder))
+                       {
+                           return changeFolder;
+                       }
 
-                    folder = ExtractParentFolder(folder);
-                    if (folder != null && changeFolder.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
-                    {
-                        while (folder != changeFolder)
-                        {
-                            changeFolderOlder = changeFolder;
-                            changeFolder = ExtractParentFolder(changeFolder);
-                        }
+                       {
+                           const string rootFolder = "$/";
+                           var folder = topFolder;
+                           while (folder != rootFolder && !changeFolder.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
+                           {
 
-                        if (changeset.Branches.Count > 1)
-                        {
-                            folder = changeFolderOlder;
-                        }
-                        break;
-                    }
-                }
+                               folder = ExtractParentFolder(folder);
+                               if (folder != null && changeFolder.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
+                               {
+                                   while (folder != changeFolder)
+                                   {
+                                       changeFolderOlder = changeFolder;
+                                       changeFolder = ExtractParentFolder(changeFolder);
+                                   }
 
-                return folder == rootFolder ? folder + "/" : folder;
-            }
+                                   
+                                   /*if (changeset.Branches.Count > 1)
+                                   {
+                                       folder = changeFolderOlder;
+                                   }
+                                   break;*/
+                               }
+                           }
+
+                           return folder == rootFolder ? folder + "/" : folder;
+                       }
         }
         
 
@@ -949,7 +1108,9 @@ namespace AutoMerge
 
         private TrackMergeInfo GetTrackMergeInfo(MergeInfoViewModel mergeInfo, Changeset changeset, VersionControlServer versionControl)
         {
-            var mergesRelationships = GetMergesRelationships(mergeInfo.SourcePath, versionControl);
+            string[] mergeInfoArray = new string[1];
+            mergeInfoArray[0] = mergeInfo.SourceBranch;
+            var mergesRelationships = GetMergesRelationships(mergeInfoArray, versionControl);
             var trackMerges = versionControl.TrackMerges(new[] {changeset.ChangesetId},
                 new ItemIdentifier(mergeInfo.SourcePath),
                 mergesRelationships.ToArray(),
