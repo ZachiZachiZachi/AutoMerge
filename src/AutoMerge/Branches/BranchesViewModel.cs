@@ -316,7 +316,8 @@ namespace AutoMerge
             var mergesRelationships = GetMergesRelationships(sourceTopFolder, versionControl);
 
             if (mergesRelationships.Count > 0)
-            {;
+            {
+
                 var sourceBranchIdentifier = changesetViewModel.Branches.Select(b => new ItemIdentifier(b)).Last();
 
                 var sourceBranch = sourceBranchIdentifier.Item;
@@ -562,6 +563,7 @@ namespace AutoMerge
                 return folder == rootFolder ? folder + "/" : folder;
             }
         }
+        
 
 //        private static bool SkipChange(ChangeType changeType, Item item)
 //        {
@@ -636,6 +638,7 @@ namespace AutoMerge
                 MergeCommand.RaiseCanExecuteChanged();
 
                 var result = await Task.Run(() => MergeExecuteInternal(checkInIfSuccess));
+                
                 var notifications = new List<Notification>();
                 var notCheckedIn = new List<MergeResultModel>(result.Count);
                 ClearNotifications();
@@ -1094,7 +1097,7 @@ namespace AutoMerge
         {
             var allPendingChanges = workspace.GetPendingChangesEnumerable(target, RecursionType.Full);
             var targetPendingChanges = allPendingChanges
-                .Where(p => p.IsMerge && p.ServerItem.Contains(target))
+                .Where(p => p.IsMerge && p.ServerItem.IndexOf(target, StringComparison.OrdinalIgnoreCase) >= 0)
                 .ToList();
             return targetPendingChanges;
         }
@@ -1190,7 +1193,7 @@ namespace AutoMerge
 
             workspace.AutoResolveValidConflicts(conflicts, AutoResolveOptions.AllSilent);
 
-            return workspace.QueryConflicts(targetPaths, true);
+            return workspace.QueryConflicts(targetPaths, true); 
         }
 
         private static void TryResolve(Workspace workspace, Conflict conflict, MergeOption mergeOption)

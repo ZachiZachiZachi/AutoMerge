@@ -1,3 +1,6 @@
+#### 0.2.6.16 (2018-11-16)
+* (fix) AutoMerge not any more excludes files just because their parent folder does not match the target branch regarding wrong character case
+
 #### 0.2.6.11 (2018-07-17)
 * (fix) AutoMerge has now the ability to merge even if several branches were in the previous change
 
