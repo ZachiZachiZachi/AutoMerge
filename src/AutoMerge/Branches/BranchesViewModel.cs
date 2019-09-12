@@ -1059,7 +1059,7 @@ namespace AutoMerge
                 };
                 
                 var mergeResult = MergeToBranch(mergeInfo, mergeOption, mergeRelationships, workspace);
-                var targetPendingChanges = GetPendingChanges(mergeInfo.TargetPath, workspace);//
+                var targetPendingChanges = GetPendingChanges(mergeInfo.TargetPath, workspace);
 
                 if (targetPendingChanges.Count == 0)
                 {
@@ -1194,7 +1194,7 @@ namespace AutoMerge
         private TrackMergeInfo GetTrackMergeInfo(MergeInfoViewModel mergeInfo, Changeset changeset, VersionControlServer versionControl)
         {
             string[] mergeInfoArray = new string[1];
-            mergeInfoArray[0] = mergeInfo.SourceBranch;
+            mergeInfoArray[0] = mergeInfo.SourcePath;
             var mergesRelationships = GetMergesRelationships(mergeInfoArray, versionControl);
             var trackMerges = versionControl.TrackMerges(new[] {changeset.ChangesetId},
                 new ItemIdentifier(mergeInfo.SourcePath),
