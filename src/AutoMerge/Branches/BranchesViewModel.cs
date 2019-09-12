@@ -378,7 +378,7 @@ namespace AutoMerge
                                 }
 
                                 isExisting = false;
-
+                            
                             }
                         }
 
@@ -396,7 +396,21 @@ namespace AutoMerge
 
                         if (isExisting == false)
                         {
-                            result.Add(currentBranchInfo);
+                            for (int i = 1; i < result.Count; i++)
+                            {
+                                if (result[i].DisplayBranchName.CompareTo(currentBranchInfo.DisplayBranchName) < 0)
+                                {
+                                    result.Insert(i, currentBranchInfo);
+                                    isExisting = true;
+                                    break;
+                                }
+
+                            }
+
+                            if (isExisting == false)
+                            {
+                                result.Add(currentBranchInfo);
+                            }
                         }
 
                         isExisting = false;
@@ -443,71 +457,142 @@ namespace AutoMerge
                         }
 
 
-                        // Feature branch
-                        if (mergesRelationships.Count > 0)
+                    // Feature branch
+                    /*
+                    if (mergesRelationships.Count > 0)
+                    {
+                        var changetIds =
+                            mergesRelationships.Select(r => r.Version).Cast<ChangesetVersionSpec>()
+                                .Select(c => c.ChangesetId)
+                                .Distinct()
+                                .ToArray();
+                        var branches = _changesetService.GetAssociatedBranches(changetIds);
+
+                        foreach (var mergesRelationship in mergesRelationships)
                         {
-                            var changetIds =
-                                mergesRelationships.Select(r => r.Version).Cast<ChangesetVersionSpec>()
-                                    .Select(c => c.ChangesetId)
-                                    .Distinct()
-                                    .ToArray();
-                            var branches = _changesetService.GetAssociatedBranches(changetIds);
-
-                            foreach (var mergesRelationship in mergesRelationships)
+                            var targetBranch = branches.FirstOrDefault(b => IsTargetPath(mergesRelationship, b));
+                            if (targetBranch != null)
                             {
-                                var targetBranch = branches.FirstOrDefault(b => IsTargetPath(mergesRelationship, b));
-                                if (targetBranch != null)
+                                var mergeInfo =
+                                    branchFactory.CreateTargetBranchInfo(targetBranch, mergesRelationship);
+                                for (int i = 0; i < result.Count; i++)
                                 {
-                                    var mergeInfo =
-                                        branchFactory.CreateTargetBranchInfo(targetBranch, mergesRelationship);
-                                    for (int i = 0; i < result.Count; i++)
+                                    if (result[i].DisplayBranchName == mergeInfo.DisplayBranchName)
                                     {
-                                        if (result[i].DisplayBranchName == mergeInfo.DisplayBranchName)
+                                        if (result[i].ValidationResult == BranchValidationResult.Success)
                                         {
-                                            if (result[i].ValidationResult == BranchValidationResult.Success)
-                                            {
-                                                isExisting = true;
-                                                break;
-                                            }
-                                            else
-                                            {
-
-                                                result.RemoveAt(i);
-                                                result.Insert(i, mergeInfo);
-                                                isExisting = true;
-                                                break;
-                                            }
+                                            isExisting = true;
+                                            break;
                                         }
+                                        else
+                                        {
+
+                                            result.RemoveAt(i);
+                                            result.Insert(i, mergeInfo);
+                                            isExisting = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (isExisting == false)
+                                {
+                                    for (int i = 1; i < result.Count; i++)
+                                    {
+                                        if (result[i].DisplayBranchName.CompareTo(mergeInfo.DisplayBranchName) < 0)
+                                        {
+                                            result.Insert(i, mergeInfo);
+                                            isExisting = true;
+                                            break;
+                                        }
+
                                     }
 
                                     if (isExisting == false)
                                     {
-                                        for (int i = 1; i < result.Count; i++)
-                                        {
-                                            if (result[i].DisplayBranchName.CompareTo(mergeInfo.DisplayBranchName) < 0)
-                                            {
-                                                result.Insert(i, mergeInfo);
-                                                isExisting = true;
-                                                break;
-                                            }
-                                                                                        
-                                        }
-
-                                        if (isExisting == false)
-                                        {
-                                            result.Add(mergeInfo);
-                                        }
-
+                                        result.Add(mergeInfo);
                                     }
 
-                                    isExisting = false;
-                            }
-                            }
+                                }
+
+                                isExisting = false;
                         }
+                        }
+                    }*/
                     }
                 }
 
+
+            int firstCambiumPosition = -1;
+
+
+            // Setzt den Main-Branch an die erste Position (Falls vorhanden)
+            try
+            {
+                int positionFromMain = -1;
+                positionFromMain = result.IndexOf(result.Where(d => d.DisplayBranchName.Contains("Main")).First());
+                if (positionFromMain > 0)
+                {
+                    result.Insert(0, result[positionFromMain]);
+                    result.RemoveAt(positionFromMain + 1);
+                }
+            }
+            catch(Exception ex) { }
+
+
+            ObservableCollection<MergeInfoViewModel> cambiumBranchesObservableCollection = new ObservableCollection<MergeInfoViewModel>();
+
+
+            // Schreibt alle Cambium-Branches in die seperate Liste „cambiumBranchesObservableCollection“
+            for (int i = 0; i < result.Count; i++)
+            {
+                if (result.ElementAt(i).DisplayBranchName.IndexOf("Cambium", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    if (firstCambiumPosition == -1)
+                    {
+                        firstCambiumPosition = i;
+                    }
+                    cambiumBranchesObservableCollection.Add(result.ElementAt(i));
+                    result.RemoveAt(i);
+                    i--;
+                }
+            }
+
+            // Fügt „cambiumBranchesObservableCollection“ an der richtigen Position zu „result“ hinzu
+            if (cambiumBranchesObservableCollection.Count > 0)
+            {
+                cambiumBranchesObservableCollection = SortDescending(cambiumBranchesObservableCollection, _ => _.DisplayBranchName);
+                foreach (var branch in cambiumBranchesObservableCollection)
+                {
+                    result.Insert(firstCambiumPosition, branch);
+                    firstCambiumPosition++;
+                }
+            }
+
+
+            // Sortierte ObservableCollection mit dem Main-Branch (falls vorhanden) an der ersten Stelle
+            // + alle CAMBIUM-Branches befinden in absteigender Ordnung an vorgegebener Position
+            //          --> Verhindert, dass ein CAMBIUM-Branch alleine am Ende steht
             return result;
+        }
+
+        /// <summary>
+        /// Sortiert die Elemente einer <see cref="ObservableCollection{TSource}" /> in absteigender Ordnung und gibt diese zurück.
+        /// </summary>
+        /// <typeparam name="TSource">Der Typ der Elemente in der Auflistung.</typeparam>
+        /// <typeparam name="TKey">Der Typ nam dem Sortiert werden soll.</typeparam>
+        /// <param name="source">Die zu sortierende Auflistung.</param>
+        /// <param name="keySelector">Eine Funktion die den Schlüssel zum sortieren auswählt.</param>
+        public static ObservableCollection<TSource> SortDescending<TSource, TKey>(ObservableCollection<TSource> source, Func<TSource, TKey> keySelector)
+        {
+            TSource[] sortedList;//Ein Array, damit die Elemente durch source.Clear nicht gelöscht werden
+            sortedList = source.OrderByDescending(keySelector).ToArray();
+
+            source.Clear();
+
+            foreach (var item in sortedList)
+                source.Add(item);
+            return source;
         }
 
         private static List<ItemIdentifier> GetMergesRelationships(string[] sourceTopFolder, VersionControlServer versionControl)
@@ -688,8 +773,8 @@ namespace AutoMerge
 
         private static string FindShareFolder(string topFolder, string changeFolder)
         {
-                       var changeset = _changeset;
-                       string changeFolderOlder = "";
+                       //var changeset = _changeset;
+                       //string changeFolderOlder = "";
                        if ((topFolder == null) || topFolder.Contains(changeFolder))
                        {
                            return changeFolder;
@@ -706,7 +791,7 @@ namespace AutoMerge
                                {
                                    while (folder != changeFolder)
                                    {
-                                       changeFolderOlder = changeFolder;
+                                       //changeFolderOlder = changeFolder;
                                        changeFolder = ExtractParentFolder(changeFolder);
                                    }
 
@@ -972,7 +1057,7 @@ namespace AutoMerge
                     SourceChangesetId = changesetId,
                     BranchInfo = mergeInfo,
                 };
-
+                
                 var mergeResult = MergeToBranch(mergeInfo, mergeOption, mergeRelationships, workspace);
                 var targetPendingChanges = GetPendingChanges(mergeInfo.TargetPath, workspace);//
 
