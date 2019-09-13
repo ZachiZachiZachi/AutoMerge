@@ -1,3 +1,7 @@
+#### 0.2.7.1 (2019-09-13)
+* (fix) Multi-Changeset merge auf 19.10 und 19.04
+* VS2019 Kompatibilität
+
 #### 0.2.6.16 (2018-11-16)
 * (fix) AutoMerge not any more excludes files just because their parent folder does not match the target branch regarding wrong character case
 
