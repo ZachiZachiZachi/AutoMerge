@@ -2,7 +2,7 @@
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
 	<Metadata>
 		<Identity Id="AutoMerge.VS2017.F05BAC3E-6794-4A9E-9EE7-1B8A200778EE" Version="0.2.7.2" Language="en-US" Publisher="ZachiZachiZachi" />
-		<DisplayName>Auto Merge for Visual Studio 2017/2019</DisplayName>
+		<DisplayName>Auto Merge for Visual Studio 2017</DisplayName>
 		<Description>Easy way to merge changeset</Description>
 		<License>LICENSE.txt</License>
 		<ReleaseNotes>https://github.com/ZachiZachiZachi/AutoMerge/blob/MultiMerge-Update-2/RELEASE_NOTES.md</ReleaseNotes>
