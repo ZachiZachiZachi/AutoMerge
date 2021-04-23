@@ -314,6 +314,22 @@ namespace AutoMerge
 
             var changes = changesetService.GetChanges(changesetViewModel.ChangesetId);
 
+            // Herausfiltern von nicht mergebaren Ordnern
+            for (int i = 0; i < changes.Length; i++)
+            {
+                var changeFolder = ExtractFolder(changes[i].ChangeType, changes[i].Item);
+
+                // Diese changes können nicht gemergt werden
+                if (changeFolder.Contains("Hundegger Produktfamilie/Platform/Technology"))
+                {
+                    // Diese Changes auf null setzen um sie im nächsten Schritt zu entfernen
+                    changes[i] = null;
+                }
+            }
+
+            // Objecte die null sind entfernen
+            changes = changes.Where(x => x != null).ToArray();
+
             var sourceTopFolder = CalculateTopFolder(changes);
             var mergesRelationships = GetMergesRelationships(sourceTopFolder, versionControl);
 
